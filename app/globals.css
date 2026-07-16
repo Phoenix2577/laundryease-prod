@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@layer base {
+  body {
+    @apply bg-slate-950 text-slate-100 font-sans antialiased;
+  }
+  ::selection {
+    @apply bg-purple-500 text-white;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply backdrop-blur-xl bg-slate-950/70;
+  }
+  .card-glow {
+    @apply hover:shadow-[0_20px_40px_rgba(124,58,237,0.15)] transition-all duration-300;
+  }
+  .input-glow:focus {
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
+  }
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #0f172a; }
+::-webkit-scrollbar-thumb { background: #581c87; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #7c3aed; }
