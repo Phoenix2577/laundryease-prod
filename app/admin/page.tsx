@@ -1,54 +1,82 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Shirt, LogOut, Search, Filter, ChevronDown, Download,
+  Shirt, LogOut, Search, ChevronDown, Download,
   Package, Users, TrendingUp, Clock, CheckCircle, AlertCircle,
-  BarChart3, ArrowUpDown, MoreHorizontal
+  BarChart3, Mail
 } from "lucide-react";
 import { STATUS_LABELS, STATUS_FLOW } from "@/types";
 import { formatDate } from "@/lib/utils";
 
-interface AdminRequest {
-  id: number;
-  ticket: string;
-  studentName: string;
-  studentId: string;
-  room: string;
-  block: string;
-  date: string;
-  items: number;
+interface RequestWithStudent {
+  id: string;
+  ticket_number: number;
+  student: {
+    full_name: string;
+    student_id: string;
+    room_number: string;
+    hostel_block: string;
+    email: string;
+  };
+  pickup_date: string;
+  total_items: number;
   status: string;
-  total: string;
-  timeSlot: string;
+  cost: number;
+  pickup_time_slot: string;
+  delivery_otp: string | null;
+  created_at: string;
 }
 
 export default function AdminPage() {
   const router = useRouter();
+  const [requests, setRequests] = useState<RequestWithStudent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRequests, setSelectedRequests] = useState<number[]>([]);
-  const [showBulkAction, setShowBulkAction] = useState(false);
+  const [updating, setUpdating] = useState<string | null>(null);
 
-  const [requests, setRequests] = useState<AdminRequest[]>([
-    { id: 1, ticket: "0423", studentName: "Rahul Sharma", studentId: "CHRIST2024001", room: "204-B", block: "Jonas Hall", date: "2026-07-15", items: 8, status: "submitted", total: "Rs.120", timeSlot: "9:00 AM - 11:00 AM" },
-    { id: 2, ticket: "0424", studentName: "Priya Menon", studentId: "CHRIST2024002", room: "112-A", block: "Christ Hall A", date: "2026-07-15", items: 12, status: "picked_up", total: "Rs.180", timeSlot: "11:00 AM - 1:00 PM" },
-    { id: 3, ticket: "0425", studentName: "Arun Kumar", studentId: "CHRIST2024003", room: "305-C", block: "Jonas Hall", date: "2026-07-15", items: 5, status: "washing", total: "Rs.75", timeSlot: "2:00 PM - 4:00 PM" },
-    { id: 4, ticket: "0426", studentName: "Sneha Reddy", studentId: "CHRIST2024004", room: "201-A", block: "St. Kuriakose", date: "2026-07-14", items: 15, status: "ready", total: "Rs.225", timeSlot: "7:00 AM - 9:00 AM" },
-    { id: 5, ticket: "0427", studentName: "Vikram Patel", studentId: "CHRIST2024005", room: "118-B", block: "Christ Hall B", date: "2026-07-14", items: 7, status: "delivered", total: "Rs.105", timeSlot: "4:00 PM - 6:00 PM" },
-    { id: 6, ticket: "0428", studentName: "Ananya Iyer", studentId: "CHRIST2024006", room: "402-A", block: "Jonas Hall", date: "2026-07-14", items: 10, status: "submitted", total: "Rs.150", timeSlot: "9:00 AM - 11:00 AM" },
-    { id: 7, ticket: "0429", studentName: "Karthik Nair", studentId: "CHRIST2024007", room: "215-C", block: "Christ Hall A", date: "2026-07-13", items: 6, status: "picked_up", total: "Rs.90", timeSlot: "11:00 AM - 1:00 PM" },
-    { id: 8, ticket: "0430", studentName: "Meera Joshi", studentId: "CHRIST2024008", room: "108-B", block: "Devadan Hall", date: "2026-07-13", items: 9, status: "washing", total: "Rs.135", timeSlot: "2:00 PM - 4:00 PM" },
-  ]);
+  useEffect(() => {
+    fetchRequests();
+  }, []);
+
+  const fetchRequests = async () => {
+    try {
+      const res = await fetch('/api/requests');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setRequests(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.clear();
     router.push("/login");
   };
 
-  const updateStatus = (id: number, newStatus: string) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+  const updateStatus = async (id: string, newStatus: string) => {
+    setUpdating(id);
+    try {
+      const res = await fetch(`/api/requests/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      
+      if (res.ok) {
+        await fetchRequests(); // Refresh data
+      }
+    } catch (err) {
+      console.error('Update failed:', err);
+    } finally {
+      setUpdating(null);
+    }
   };
 
   const getNextStatus = (current: string) => {
@@ -59,21 +87,29 @@ export default function AdminPage() {
   const filteredRequests = requests.filter(r => {
     const matchesStatus = filterStatus === "all" || r.status === filterStatus;
     const matchesSearch = searchQuery === "" || 
-      r.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.room.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.ticket.includes(searchQuery);
+      r.student?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.student?.student_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.student?.room_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(r.ticket_number).includes(searchQuery);
     return matchesStatus && matchesSearch;
   });
 
   const stats = {
-    totalToday: requests.filter(r => r.date === "2026-07-15").length,
+    totalToday: requests.filter(r => r.pickup_date === new Date().toISOString().split('T')[0]).length,
     pending: requests.filter(r => r.status === "submitted").length,
     inProgress: requests.filter(r => r.status === "picked_up" || r.status === "washing").length,
     ready: requests.filter(r => r.status === "ready").length,
     delivered: requests.filter(r => r.status === "delivered").length,
-    totalRevenue: requests.reduce((a, r) => a + parseInt(r.total.replace("Rs.", "")), 0),
+    totalRevenue: requests.reduce((a, r) => a + (r.cost || 0), 0),
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-purple-400 animate-pulse">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -136,9 +172,6 @@ export default function AdminPage() {
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-purple-500/20 text-slate-300 hover:text-white hover:border-purple-500/40 transition-all text-sm">
-            <Download className="w-4 h-4" /> Export
-          </button>
         </div>
 
         {/* Requests Table */}
@@ -162,37 +195,46 @@ export default function AdminPage() {
                   return (
                     <tr key={req.id} className="hover:bg-purple-500/5 transition-colors group">
                       <td className="px-4 py-3">
-                        <span className="font-mono font-bold text-white">#{req.ticket}</span>
+                        <span className="font-mono font-bold text-white">#{String(req.ticket_number).padStart(4, '0')}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <p className="font-medium text-white text-sm">{req.studentName}</p>
-                        <p className="text-xs text-slate-500">{req.studentId}</p>
+                        <p className="font-medium text-white text-sm">{req.student?.full_name || 'Unknown'}</p>
+                        <p className="text-xs text-slate-500">{req.student?.student_id}</p>
+                        {req.student?.email && (
+                          <p className="text-xs text-slate-600 flex items-center gap-1">
+                            <Mail className="w-3 h-3" /> {req.student.email}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
-                        <p className="text-sm text-white">{req.room}</p>
-                        <p className="text-xs text-slate-500">{req.block}</p>
+                        <p className="text-sm text-white">{req.student?.room_number}</p>
+                        <p className="text-xs text-slate-500">{req.student?.hostel_block}</p>
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell">
-                        <p className="text-sm text-white">{formatDate(req.date)}</p>
-                        <p className="text-xs text-slate-500">{req.timeSlot}</p>
+                        <p className="text-sm text-white">{formatDate(req.pickup_date)}</p>
+                        <p className="text-xs text-slate-500">{req.pickup_time_slot}</p>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm text-white font-medium">{req.items}</span>
-                        <span className="text-xs text-slate-500 ml-1">({req.total})</span>
+                        <span className="text-sm text-white font-medium">{req.total_items}</span>
+                        <span className="text-xs text-slate-500 ml-1">(Rs.{req.cost})</span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${STATUS_LABELS[req.status]?.bg || ""}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${STATUS_LABELS[req.status]?.color?.replace("text-", "bg-") || "bg-slate-500"}`} />
                           {STATUS_LABELS[req.status]?.label || req.status}
                         </span>
+                        {req.delivery_otp && req.status === 'ready' && (
+                          <p className="text-xs text-red-400 mt-1">OTP: {req.delivery_otp}</p>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {nextStatus ? (
                           <button
                             onClick={() => updateStatus(req.id, nextStatus)}
-                            className="text-xs font-medium px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/30 transition-all"
+                            disabled={updating === req.id}
+                            className="text-xs font-medium px-3 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/30 transition-all disabled:opacity-50"
                           >
-                            Mark {STATUS_LABELS[nextStatus]?.label || nextStatus}
+                            {updating === req.id ? '...' : `Mark ${STATUS_LABELS[nextStatus]?.label || nextStatus}`}
                           </button>
                         ) : (
                           <span className="text-xs text-emerald-400 flex items-center gap-1">
@@ -212,51 +254,6 @@ export default function AdminPage() {
               <p>No requests found matching your filters.</p>
             </div>
           )}
-        </div>
-
-        {/* Analytics Preview */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="rounded-2xl bg-slate-900/50 border border-purple-500/10 p-6">
-            <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-purple-400" /> Weekly Volume
-            </h3>
-            <div className="flex items-end gap-2 h-32">
-              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, i) => {
-                const heights = [45, 62, 38, 78, 55, 30, 25];
-                return (
-                  <div key={day} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full bg-purple-500/20 rounded-t-lg relative group" style={{ height: `${heights[i]}%` }}>
-                      <div className="absolute inset-0 bg-gradient-to-t from-purple-600/40 to-purple-400/20 rounded-t-lg" />
-                    </div>
-                    <span className="text-xs text-slate-500">{day}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div className="rounded-2xl bg-slate-900/50 border border-purple-500/10 p-6">
-            <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-              <Users className="w-5 h-5 text-violet-400" /> Top Blocks
-            </h3>
-            <div className="space-y-3">
-              {[
-                { block: "Jonas Hall", count: 234, pct: 85 },
-                { block: "Christ Hall A", count: 156, pct: 60 },
-                { block: "St. Kuriakose", count: 98, pct: 40 },
-                { block: "Devadan Hall", count: 67, pct: 25 },
-              ].map(item => (
-                <div key={item.block}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-300">{item.block}</span>
-                    <span className="text-white font-medium">{item.count}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-violet-500" style={{ width: `${item.pct}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </main>
     </div>
