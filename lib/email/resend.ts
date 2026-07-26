@@ -1,6 +1,8 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resendApiKey = process.env.RESEND_API_KEY;
+
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 interface EmailParams {
   to: string;
@@ -11,7 +13,7 @@ interface EmailParams {
 }
 
 export async function sendStatusEmail({ to, studentName, ticketNumber, status, otp }: EmailParams) {
-  if (!process.env.RESEND_API_KEY) {
+  if (!resend) {
     console.warn('RESEND_API_KEY not set, skipping email');
     return;
   }
@@ -42,7 +44,7 @@ export async function sendStatusEmail({ to, studentName, ticketNumber, status, o
   `;
 
   const { data, error } = await resend.emails.send({
-    from: 'LaundryEase <laundry@christuniversity.in>',
+    from: 'onboarding@resend.dev',
     to,
     subject,
     html,
