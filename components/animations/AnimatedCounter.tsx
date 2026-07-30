@@ -1,58 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { motion, useInView } from "framer-motion";
+import { useEffect, useState } from "react";
+import { motion, useSpring, useTransform } from "framer-motion";
 
 interface AnimatedCounterProps {
   value: number;
-  prefix?: string;
-  suffix?: string;
-  duration?: number;
   className?: string;
 }
 
-export function AnimatedCounter({
-  value,
-  prefix = "",
-  suffix = "",
-  duration = 1.5,
-  className = "",
-}: AnimatedCounterProps) {
-  const [count, setCount] = useState(0);
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true });
-  const hasAnimated = useRef(false);
+export function AnimatedCounter({ value, className = "" }: AnimatedCounterProps) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const spring = useSpring(0, { duration: 1500, bounce: 0 });
+  const display = useTransform(spring, (v) => Math.round(v));
 
   useEffect(() => {
-    if (isInView && !hasAnimated.current) {
-      hasAnimated.current = true;
-      const startTime = Date.now();
-      const endValue = value;
+    spring.set(value);
+  }, [value, spring]);
 
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / (duration * 1000), 1);
-        const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-        setCount(Math.floor(eased * endValue));
+  useEffect(() => {
+    const unsubscribe = display.on("change", (v) => setDisplayValue(v));
+    return unsubscribe;
+  }, [display]);
 
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        }
-      };
-
-      requestAnimationFrame(animate);
-    }
-  }, [isInView, value, duration]);
-
-  return (
-    <motion.span
-      ref={ref}
-      initial={{ opacity: 0, scale: 0.5 }}
-      animate={isInView ? { opacity: 1, scale: 1 } : {}}
-      transition={{ duration: 0.5 }}
-      className={className}
-    >
-      {prefix}{count}{suffix}
-    </motion.span>
-  );
+  return <span className={className}>{displayValue}</span>;
 }

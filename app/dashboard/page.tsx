@@ -5,13 +5,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import {
   Shirt, LogOut, Bell, Plus, MessageSquare, Star,
-  Package, TrendingUp, Clock, ChevronRight
+  Package, TrendingUp, Clock, ChevronRight, CheckCircle2,
+  Truck, WashingMachine, AlertCircle, Calendar, Hash
 } from "lucide-react";
 import { FadeIn } from "@/components/animations/FadeIn";
 import { StaggerContainer, StaggerItem } from "@/components/animations/StaggerContainer";
 import { GlowCard } from "@/components/animations/GlowCard";
 import { FloatingOrbs } from "@/components/animations/FloatingOrbs";
 import { AnimatedCounter } from "@/components/animations/AnimatedCounter";
+import { SubmitLaundryModal } from "@/components/modals/SubmitLaundryModal";
 
 interface LaundryRequest {
   id: string;
@@ -22,11 +24,21 @@ interface LaundryRequest {
   cost: number;
 }
 
+const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
+  submitted: { label: "Submitted", color: "text-amber-400", icon: Package },
+  picked_up: { label: "Picked Up", color: "text-blue-400", icon: Truck },
+  in_progress: { label: "Washing", color: "text-cyan-400", icon: WashingMachine },
+  ready: { label: "Ready for Delivery", color: "text-emerald-400", icon: CheckCircle2 },
+  delivered: { label: "Delivered", color: "text-purple-400", icon: Star },
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [requests, setRequests] = useState<LaundryRequest[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<LaundryRequest | null>(null);
 
   useEffect(() => {
     fetchRequests();
@@ -46,6 +58,29 @@ export default function DashboardPage() {
     }
   };
 
+  const handleSubmit = async (data: { pickupDate: string; timeSlot: string; totalItems: number }) => {
+    try {
+      const res = await fetch('/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_id: 'CHRIST2024001',
+          pickup_date: data.pickupDate,
+          pickup_time_slot: data.timeSlot,
+          total_items: data.totalItems,
+          status: 'submitted',
+        }),
+      });
+
+      if (res.ok) {
+        await fetchRequests();
+        setIsModalOpen(false);
+      }
+    } catch (err) {
+      console.error('Submit failed:', err);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.clear();
     router.push("/login");
@@ -54,8 +89,30 @@ export default function DashboardPage() {
   const stats = {
     totalRequests: requests.length,
     itemsWashed: requests.reduce((a, r) => a + (r.total_items || 0), 0),
-    pending: requests.filter(r => r.status === "submitted" || r.status === "picked_up").length,
+    pending: requests.filter(r => r.status === "submitted" || r.status === "picked_up" || r.status === "in_progress").length,
+    completed: requests.filter(r => r.status === "delivered").length,
     avgRating: 4.2,
+  };
+
+  const recentRequests = [...requests].sort((a, b) =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  ).slice(0, 5);
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric'
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    const config = statusConfig[status] || { label: status, color: "text-slate-400", icon: AlertCircle };
+    const Icon = config.icon;
+    return (
+      <div className={`flex items-center gap-1.5 text-xs font-medium ${config.color}`}>
+        <Icon className="w-3.5 h-3.5" />
+        {config.label}
+      </div>
+    );
   };
 
   if (loading) {
@@ -73,7 +130,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-950 relative overflow-hidden">
       <FloatingOrbs />
-      
+
       {/* Header */}
       <motion.header
         initial={{ y: -100 }}
@@ -82,7 +139,7 @@ export default function DashboardPage() {
         className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800/50"
       >
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <motion.div 
+          <motion.div
             className="flex items-center gap-3"
             whileHover={{ scale: 1.02 }}
           >
@@ -94,236 +151,451 @@ export default function DashboardPage() {
             </motion.div>
             <div>
               <h1 className="text-lg font-bold text-white">LaundryEase</h1>
+              <p className="text-xs text-slate-400">Student Dashboard</p>
             </div>
           </motion.div>
-          
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2">
             <motion.button
-              whileHover={{ scale: 1.1 }}
+              whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="p-2 rounded-lg hover:bg-slate-800/50 text-slate-400 relative"
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-purple-500/20"
+            >
+              <Plus className="w-4 h-4" />
+              New Request
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="relative p-2.5 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800/50"
             >
               <Bell className="w-5 h-5" />
-              <motion.span
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="absolute top-1.5 right-1.5 w-2 h-2 bg-purple-500 rounded-full"
-              />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
             </motion.button>
+
             <motion.button
-              whileHover={{ scale: 1.1 }}
+              whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleLogout}
-              className="p-2 rounded-lg hover:bg-slate-800/50 text-slate-400"
+              className="p-2.5 text-slate-400 hover:text-red-400 transition-colors rounded-xl hover:bg-slate-800/50"
             >
               <LogOut className="w-5 h-5" />
             </motion.button>
-            <motion.div
-              whileHover={{ scale: 1.1 }}
-              className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-violet-700 flex items-center justify-center text-white text-sm font-bold"
-            >
-              JD
-            </motion.div>
           </div>
         </div>
       </motion.header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 relative z-10">
-        {/* Profile Card */}
+      {/* Main Content */}
+      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+
+        {/* Welcome */}
         <FadeIn>
-          <GlowCard className="mb-6">
-            <div className="p-6 flex items-center gap-4">
-              <motion.div
-                whileHover={{ scale: 1.1, rotate: 5 }}
-                className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-violet-700 flex items-center justify-center text-white text-xl font-bold"
-              >
-                <UserIcon />
-              </motion.div>
-              <div className="flex-1">
-                <h2 className="text-lg font-semibold text-white">John Doe</h2>
-                <p className="text-sm text-slate-500">CHRIST2024001 · Jonas Hall</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-500">Room</p>
-                <p className="text-lg font-bold text-white">204-B</p>
-              </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Welcome back! 👋</h2>
+              <p className="text-slate-400 mt-1">Here's what's happening with your laundry</p>
             </div>
-          </GlowCard>
+            <div className="flex items-center gap-1 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full">
+              <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+              <span className="text-sm font-medium text-amber-400">{stats.avgRating}</span>
+            </div>
+          </div>
         </FadeIn>
 
-        {/* Stats */}
-        <StaggerContainer staggerDelay={0.1} className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {/* Stats Grid */}
+        <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StaggerItem>
-            <GlowCard glowColor="rgba(139, 92, 246, 0.2)">
-              <div className="p-5">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center mb-3 text-purple-400">
-                  <Package className="w-4 h-4" />
+            <GlowCard>
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs text-slate-400 font-medium">Total Requests</span>
                 </div>
-                <p className="text-xs text-slate-500 mb-1">Total Requests</p>
                 <AnimatedCounter value={stats.totalRequests} className="text-2xl font-bold text-white" />
               </div>
             </GlowCard>
           </StaggerItem>
-          
+
           <StaggerItem>
-            <GlowCard glowColor="rgba(59, 130, 246, 0.2)">
-              <div className="p-5">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center mb-3 text-blue-400">
-                  <TrendingUp className="w-4 h-4" />
+            <GlowCard>
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shirt className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs text-slate-400 font-medium">Items Washed</span>
                 </div>
-                <p className="text-xs text-slate-500 mb-1">Items Washed</p>
                 <AnimatedCounter value={stats.itemsWashed} className="text-2xl font-bold text-white" />
               </div>
             </GlowCard>
           </StaggerItem>
-          
+
           <StaggerItem>
-            <GlowCard glowColor="rgba(245, 158, 11, 0.2)">
-              <div className="p-5">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center mb-3 text-amber-400">
-                  <Clock className="w-4 h-4" />
+            <GlowCard>
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs text-slate-400 font-medium">Pending</span>
                 </div>
-                <p className="text-xs text-slate-500 mb-1">Pending</p>
                 <AnimatedCounter value={stats.pending} className="text-2xl font-bold text-white" />
               </div>
             </GlowCard>
           </StaggerItem>
-          
+
           <StaggerItem>
-            <GlowCard glowColor="rgba(16, 185, 129, 0.2)">
-              <div className="p-5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-3 text-emerald-400">
-                  <Star className="w-4 h-4" />
+            <GlowCard>
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs text-slate-400 font-medium">Completed</span>
                 </div>
-                <p className="text-xs text-slate-500 mb-1">Avg Rating</p>
-                <div className="text-2xl font-bold text-white">
-                  {stats.avgRating}<span className="text-sm text-slate-500">/5</span>
-                </div>
+                <AnimatedCounter value={stats.completed} className="text-2xl font-bold text-white" />
               </div>
             </GlowCard>
           </StaggerItem>
         </StaggerContainer>
 
-        {/* Action Cards */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <motion.button
-            whileHover={{ scale: 1.03, y: -5 }}
-            whileTap={{ scale: 0.98 }}
-            className="p-6 rounded-2xl bg-gradient-to-br from-purple-600/20 to-violet-800/20 border border-purple-500/20 text-left group relative overflow-hidden"
-          >
-            <motion.div
-              whileHover={{ rotate: 90 }}
-              className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-4 text-purple-400"
-            >
-              <Plus className="w-6 h-6" />
-            </motion.div>
-            <h3 className="text-white font-semibold mb-1">Submit New Laundry</h3>
-            <p className="text-slate-400 text-sm">Register clothes for pickup</p>
-            <motion.div
-              className="absolute top-4 right-4 opacity-0 group-hover:opacity-100"
-              animate={{ x: [0, 5, 0] }}
-              transition={{ duration: 1, repeat: Infinity }}
-            >
-              <ChevronRight className="w-5 h-5 text-purple-400" />
-            </motion.div>
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.03, y: -5 }}
-            whileTap={{ scale: 0.98 }}
-            className="p-6 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/30 text-left group relative overflow-hidden"
-          >
-            <motion.div
-              className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
-            />
-            <div className="w-12 h-12 rounded-xl bg-slate-700/30 flex items-center justify-center mb-4 text-slate-400">
-              <MessageSquare className="w-6 h-6" />
-            </div>
-            <h3 className="text-white font-semibold mb-1">Share Feedback</h3>
-            <p className="text-slate-400 text-sm">Help improve our service</p>
-          </motion.button>
-        </div>
-
         {/* Tabs */}
-        <FadeIn delay={0.3}>
-          <div className="flex gap-2 mb-6 p-1 rounded-xl bg-slate-900/50 border border-slate-800/50">
-            {["overview", "history", "feedback"].map((tab) => (
+        <FadeIn delay={0.2}>
+          <div className="flex gap-1 p-1 bg-slate-900/50 rounded-xl border border-slate-800/50">
+            {[
+              { id: "overview", label: "Overview", icon: TrendingUp },
+              { id: "requests", label: "My Requests", icon: Package },
+              { id: "history", label: "History", icon: Clock },
+            ].map((tab) => (
               <motion.button
-                key={tab}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium capitalize transition-all ${
-                  activeTab === tab
-                    ? "bg-purple-600/20 text-purple-300 border border-purple-500/20"
-                    : "text-slate-500 hover:text-slate-300"
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === tab.id
+                    ? "bg-slate-800 text-white shadow-lg"
+                    : "text-slate-400 hover:text-slate-200"
                 }`}
+                whileTap={{ scale: 0.98 }}
               >
-                {tab}
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
               </motion.button>
             ))}
           </div>
         </FadeIn>
 
-        {/* Recent Activity */}
-        <FadeIn delay={0.4}>
-          <h3 className="text-white font-semibold mb-4">Recent Activity</h3>
-          <div className="space-y-3">
-            <AnimatePresence>
-              {requests.slice(0, 5).map((req, index) => (
-                <motion.div
-                  key={req.id}
-                  initial={{ opacity: 0, x: -30 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 30 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.02, x: 5 }}
-                  className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/30 flex items-center justify-between group cursor-pointer"
-                >
-                  <div className="flex items-center gap-4">
-                    <motion.div
-                      whileHover={{ rotate: 15 }}
-                      className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400"
-                    >
-                      <Package className="w-5 h-5" />
-                    </motion.div>
-                    <div>
-                      <p className="text-white font-medium">Laundry #{String(req.ticket_number).padStart(4, '0')}</p>
-                      <p className="text-xs text-slate-500">{req.created_at ? new Date(req.created_at).toLocaleDateString() : 'N/A'} · {req.total_items} items</p>
+        {/* Tab Content */}
+        <AnimatePresence mode="wait">
+          {activeTab === "overview" && (
+            <motion.div
+              key="overview"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-4"
+            >
+              {/* Quick Actions */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <GlowCard>
+                  <div
+                    onClick={() => setIsModalOpen(true)}
+                    className="p-5 cursor-pointer group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                          <Plus className="w-5 h-5 text-purple-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-white font-medium">Submit Laundry</h3>
+                          <p className="text-xs text-slate-400">Schedule a new pickup</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-purple-400 transition-colors" />
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      req.status === 'delivered' ? 'bg-emerald-500/10 text-emerald-400' :
-                      req.status === 'ready' ? 'bg-cyan-500/10 text-cyan-400' :
-                      'bg-amber-500/10 text-amber-400'
-                    }`}>
-                      {req.status}
-                    </span>
-                    {req.status === 'delivered' && (
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        className="text-xs text-purple-400 hover:text-purple-300"
-                      >
-                        Rate
-                      </motion.button>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        </FadeIn>
-      </main>
-    </div>
-  );
-}
+                </GlowCard>
 
-function UserIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
+                <GlowCard>
+                  <div className="p-5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                          <MessageSquare className="w-5 h-5 text-cyan-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-white font-medium">Support</h3>
+                          <p className="text-xs text-slate-400">Need help? Contact us</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-slate-500" />
+                    </div>
+                  </div>
+                </GlowCard>
+              </div>
+
+              {/* Recent Requests */}
+              <FadeIn>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-white font-semibold">Recent Requests</h3>
+                  <button
+                    onClick={() => setActiveTab("requests")}
+                    className="text-xs text-purple-400 hover:text-purple-300 font-medium"
+                  >
+                    View all
+                  </button>
+                </div>
+              </FadeIn>
+
+              <StaggerContainer className="space-y-3">
+                {recentRequests.length === 0 ? (
+                  <GlowCard>
+                    <div className="p-8 text-center">
+                      <Package className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                      <p className="text-slate-400">No requests yet</p>
+                      <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="mt-3 text-sm text-purple-400 hover:text-purple-300 font-medium"
+                      >
+                        Create your first request
+                      </button>
+                    </div>
+                  </GlowCard>
+                ) : (
+                  recentRequests.map((req) => (
+                    <StaggerItem key={req.id}>
+                      <motion.div
+                        whileHover={{ scale: 1.01 }}
+                        onClick={() => setSelectedRequest(req)}
+                        className="cursor-pointer"
+                      >
+                        <GlowCard>
+                          <div className="p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center">
+                                <Hash className="w-5 h-5 text-purple-400" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-white font-medium">Ticket #{req.ticket_number}</h4>
+                                  {getStatusBadge(req.status)}
+                                </div>
+                                <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    {formatDate(req.created_at)}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Shirt className="w-3 h-3" />
+                                    {req.total_items} items
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-slate-600" />
+                          </div>
+                        </GlowCard>
+                      </motion.div>
+                    </StaggerItem>
+                  ))
+                )}
+              </StaggerContainer>
+            </motion.div>
+          )}
+
+          {activeTab === "requests" && (
+            <motion.div
+              key="requests"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-3"
+            >
+              <StaggerContainer className="space-y-3">
+                {requests.length === 0 ? (
+                  <GlowCard>
+                    <div className="p-8 text-center">
+                      <Package className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                      <p className="text-slate-400">No requests found</p>
+                    </div>
+                  </GlowCard>
+                ) : (
+                  requests.sort((a, b) =>
+                    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                  ).map((req) => (
+                    <StaggerItem key={req.id}>
+                      <motion.div
+                        whileHover={{ scale: 1.01 }}
+                        onClick={() => setSelectedRequest(req)}
+                        className="cursor-pointer"
+                      >
+                        <GlowCard>
+                          <div className="p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <h4 className="text-white font-medium">Ticket #{req.ticket_number}</h4>
+                                {getStatusBadge(req.status)}
+                              </div>
+                              <span className="text-sm font-medium text-emerald-400">
+                                ₹{req.cost || 0}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 text-xs text-slate-400">
+                              <div>
+                                <p className="text-slate-500 mb-1">Date</p>
+                                <p className="text-slate-300">{formatDate(req.created_at)}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-500 mb-1">Items</p>
+                                <p className="text-slate-300">{req.total_items}</p>
+                              </div>
+                              <div>
+                                <p className="text-slate-500 mb-1">Status</p>
+                                <p className="text-slate-300 capitalize">{req.status.replace('_', ' ')}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </GlowCard>
+                      </motion.div>
+                    </StaggerItem>
+                  ))
+                )}
+              </StaggerContainer>
+            </motion.div>
+          )}
+
+          {activeTab === "history" && (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-3"
+            >
+              <StaggerContainer className="space-y-3">
+                {requests.filter(r => r.status === "delivered").length === 0 ? (
+                  <GlowCard>
+                    <div className="p-8 text-center">
+                      <Clock className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                      <p className="text-slate-400">No completed requests yet</p>
+                    </div>
+                  </GlowCard>
+                ) : (
+                  requests
+                    .filter(r => r.status === "delivered")
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map((req) => (
+                      <StaggerItem key={req.id}>
+                        <GlowCard>
+                          <div className="p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                              </div>
+                              <div>
+                                <h4 className="text-white font-medium">Ticket #{req.ticket_number}</h4>
+                                <p className="text-xs text-slate-400">{formatDate(req.created_at)} • {req.total_items} items</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-medium text-emerald-400">₹{req.cost || 0}</span>
+                              <button className="p-2 hover:bg-slate-800 rounded-lg transition-colors">
+                                <Star className="w-4 h-4 text-slate-500 hover:text-amber-400" />
+                              </button>
+                            </div>
+                          </div>
+                        </GlowCard>
+                      </StaggerItem>
+                    ))
+                )}
+              </StaggerContainer>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* Submit Modal */}
+      <SubmitLaundryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleSubmit}
+      />
+
+      {/* Request Detail Modal */}
+      <AnimatePresence>
+        {selectedRequest && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setSelectedRequest(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white">Request Details</h3>
+                <button
+                  onClick={() => setSelectedRequest(null)}
+                  className="p-1 text-slate-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl">
+                  <Hash className="w-5 h-5 text-purple-400" />
+                  <div>
+                    <p className="text-xs text-slate-400">Ticket Number</p>
+                    <p className="text-white font-medium">#{selectedRequest.ticket_number}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl">
+                  <Calendar className="w-5 h-5 text-cyan-400" />
+                  <div>
+                    <p className="text-xs text-slate-400">Submitted On</p>
+                    <p className="text-white font-medium">{formatDate(selectedRequest.created_at)}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl">
+                  <Shirt className="w-5 h-5 text-amber-400" />
+                  <div>
+                    <p className="text-xs text-slate-400">Total Items</p>
+                    <p className="text-white font-medium">{selectedRequest.total_items} items</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl">
+                  <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  <div>
+                    <p className="text-xs text-slate-400">Cost</p>
+                    <p className="text-white font-medium">₹{selectedRequest.cost || 0}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl">
+                  <Package className="w-5 h-5 text-purple-400" />
+                  <div>
+                    <p className="text-xs text-slate-400">Status</p>
+                    <div className="mt-1">{getStatusBadge(selectedRequest.status)}</div>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedRequest(null)}
+                className="w-full mt-6 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-colors"
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

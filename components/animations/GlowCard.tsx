@@ -6,31 +6,16 @@ import { ReactNode } from "react";
 interface GlowCardProps {
   children: ReactNode;
   className?: string;
-  glowColor?: string;
 }
 
-export function GlowCard({
-  children,
-  className = "",
-  glowColor = "rgba(124, 58, 237, 0.3)",
-}: GlowCardProps) {
+export function GlowCard({ children, className = "" }: GlowCardProps) {
   return (
     <motion.div
-      className={`relative overflow-hidden rounded-2xl bg-slate-900/80 border border-slate-700/50 backdrop-blur-sm ${className}`}
-      whileHover={{
-        scale: 1.02,
-        borderColor: "rgba(124, 58, 237, 0.5)",
-        boxShadow: `0 0 30px ${glowColor}, inset 0 1px 0 rgba(255,255,255,0.1)`,
-      }}
-      whileTap={{
-        scale: 0.98,
-        borderColor: "rgba(124, 58, 237, 0.8)",
-        boxShadow: `0 0 40px ${glowColor}, inset 0 1px 0 rgba(255,255,255,0.1)`,
-      }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
+      whileHover={{ scale: 1.01 }}
+      className={`relative bg-slate-900/60 backdrop-blur-sm border border-slate-800/50 rounded-2xl overflow-hidden ${className}`}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-cyan-500/5 opacity-0 hover:opacity-100 transition-opacity duration-500" />
-      <div className="relative z-10">{children}</div>
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-cyan-500/5 opacity-0 hover:opacity-100 transition-opacity duration-500" />
+      <div className="relative">{children}</div>
     </motion.div>
   );
 }
