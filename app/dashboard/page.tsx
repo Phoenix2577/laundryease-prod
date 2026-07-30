@@ -147,12 +147,6 @@ export default function DashboardPage() {
                 <p className="text-xs text-slate-500">Room</p>
                 <p className="text-lg font-bold text-white">204-B</p>
               </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-500">Annual Quota</p>
-                <p className="text-lg font-bold text-emerald-400">
-                  Rs.<AnimatedCounter value={5833} /> / Rs.7,000
-                </p>
-              </div>
             </div>
           </GlowCard>
         </FadeIn>
@@ -215,7 +209,7 @@ export default function DashboardPage() {
           <motion.button
             whileHover={{ scale: 1.03, y: -5 }}
             whileTap={{ scale: 0.98 }}
-            className="p-6 rounded-2xl bg-gradient-to-br from-purple-600/20 to-violet-800/20 border border-purple-500/20 text-left group"
+            className="p-6 rounded-2xl bg-gradient-to-br from-purple-600/20 to-violet-800/20 border border-purple-500/20 text-left group relative overflow-hidden"
           >
             <motion.div
               whileHover={{ rotate: 90 }}
