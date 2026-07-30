@@ -22,6 +22,11 @@ export function GlowCard({
         borderColor: "rgba(124, 58, 237, 0.5)",
         boxShadow: `0 0 30px ${glowColor}, inset 0 1px 0 rgba(255,255,255,0.1)`,
       }}
+      whileTap={{
+        scale: 0.98,
+        borderColor: "rgba(124, 58, 237, 0.8)",
+        boxShadow: `0 0 40px ${glowColor}, inset 0 1px 0 rgba(255,255,255,0.1)`,
+      }}
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-cyan-500/5 opacity-0 hover:opacity-100 transition-opacity duration-500" />

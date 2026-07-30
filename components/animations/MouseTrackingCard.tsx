@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
-import { ReactNode, useRef } from "react";
+import { ReactNode, useRef, useEffect, useState } from "react";
 
 interface MouseTrackingCardProps {
   children: ReactNode;
@@ -10,6 +10,7 @@ interface MouseTrackingCardProps {
 
 export function MouseTrackingCard({ children, className = "" }: MouseTrackingCardProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
   
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -20,7 +21,27 @@ export function MouseTrackingCard({ children, className = "" }: MouseTrackingCar
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["8deg", "-8deg"]);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-8deg", "8deg"]);
   
+  useEffect(() => {
+    setIsMobile(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+    
+    // Gyroscope support for mobile
+    if (typeof window !== "undefined" && window.DeviceOrientationEvent) {
+      const handleOrientation = (e: DeviceOrientationEvent) => {
+        if (!ref.current) return;
+        const gamma = e.gamma || 0; // Left/right tilt
+        const beta = e.beta || 0;   // Front/back tilt
+        // Normalize to -0.5 to 0.5 range
+        x.set(Math.max(-0.5, Math.min(0.5, gamma / 45)));
+        y.set(Math.max(-0.5, Math.min(0.5, (beta - 45) / 45)));
+      };
+      
+      window.addEventListener("deviceorientation", handleOrientation);
+      return () => window.removeEventListener("deviceorientation", handleOrientation);
+    }
+  }, []);
+  
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isMobile) return; // Don't use mouse on mobile
     if (!ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     const width = rect.width;
@@ -34,6 +55,7 @@ export function MouseTrackingCard({ children, className = "" }: MouseTrackingCar
   };
   
   const handleMouseLeave = () => {
+    if (isMobile) return;
     x.set(0);
     y.set(0);
   };

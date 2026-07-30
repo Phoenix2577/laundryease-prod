@@ -13,14 +13,11 @@ export function ClickRippleProvider({ children }: { children: React.ReactNode })
   const [ripples, setRipples] = useState<Ripple[]>([]);
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; angle: number; distance: number }>>([]);
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+  const createRipple = useCallback((clientX: number, clientY: number) => {
     const id = Date.now();
-
+    
     // Add ripple
-    setRipples((prev) => [...prev, { id, x, y }]);
+    setRipples((prev) => [...prev, { id, x: clientX, y: clientY }]);
     setTimeout(() => {
       setRipples((prev) => prev.filter((r) => r.id !== id));
     }, 1000);
@@ -28,8 +25,8 @@ export function ClickRippleProvider({ children }: { children: React.ReactNode })
     // Add particles
     const newParticles = Array.from({ length: 12 }, (_, i) => ({
       id: id + i,
-      x,
-      y,
+      x: clientX,
+      y: clientY,
       angle: (i * 30) + Math.random() * 20,
       distance: 50 + Math.random() * 100,
     }));
@@ -39,8 +36,28 @@ export function ClickRippleProvider({ children }: { children: React.ReactNode })
     }, 1500);
   }, []);
 
+  const handleClick = (e: React.MouseEvent | React.TouchEvent) => {
+    let clientX, clientY;
+    
+    if ('touches' in e) {
+      // Touch event
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      // Mouse event
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    createRipple(clientX, clientY);
+  };
+
   return (
-    <div onClick={handleClick} className="relative overflow-hidden">
+    <div 
+      onClick={handleClick as any}
+      onTouchStart={handleClick as any}
+      className="relative overflow-hidden"
+    >
       {children}
       <AnimatePresence>
         {ripples.map((ripple) => (
