@@ -400,3 +400,4 @@ export default function AdminPage() {
     </div>
   );
 }
+// Animated counters active
